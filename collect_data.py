@@ -5,14 +5,14 @@ import time
 
 from selenium import webdriver
 
-opponent = "Just Hard Enough"
-us = "Zoosters Millions"
-division = 9321
-simulation_count = 100000
-graphs = "one_line"
+OPPONENT = "Just Hard Enough"
+US = "Zoosters Millions"
+DIVISION = 9321
+SIMULATION_COUNT = 100000
+GRAPHS = "one_line"
 
 BASEURL = "https://www.napaleagues.com/stats.php?playerSelected=Y&playerID"
-ROSTERSURL = "https://www.napaleagues.com/roster_grid.php?did=%s" % division
+ROSTERSURL = "https://www.napaleagues.com/roster_grid.php?did=%s" % DIVISION
 
 WEBDRIVER = "Chrome"
 
@@ -26,6 +26,23 @@ XPATHS = {
 
 
 def get_rosters(browser, url):
+    """Get Fosters for a division
+    
+    args:
+      browser(selenium.webdriver):  Handle to the selenium webdriver class
+      url(str):  URL to get division rosters
+      
+    returns:
+        players(dict):  Dictionary players name and player ID per team in the division
+          ex:
+            players{
+              "The Trumpeters": {
+                "Bobby Shew":{
+                  "player_id": 111111,
+                }
+              }
+            }
+    """
     players = {}
     browser.get(url)
     browser.implicitly_wait(6)
@@ -46,6 +63,15 @@ def get_rosters(browser, url):
 
 
 def get_race(player1skill, player2skill):
+    """Get the race between 2 players
+    
+    args:
+      player1skill(int): skill rating of our player
+      player2skill(int): skill rating of the opponent player
+      
+    returns:
+      (unnamed list):  (ourrace, theirrace)
+    """
     race_tables = {
         89: {
             74: (10, 2),
@@ -124,6 +150,15 @@ def create_connection(driver=WEBDRIVER):
 
 
 def get_player_skill_levels(browser, player_id):
+    """Get 8ball, 9ball, 10ball skill levels for a player
+    
+    args:
+      browser(selenium.webdriver):  Handle to the selenium webdriver class
+      player_id(int):  player ID number
+      
+    returns:
+      (unnamed list):  (8ball_skill_level, 9ball_skill_level, 10ball_skill_level)
+    """
     try:
       browser.get("%s=%s" % (BASEURL, player_id))
       browser.implicitly_wait(6)
@@ -137,6 +172,22 @@ def get_player_skill_levels(browser, player_id):
 
 
 def get_player_stats(browser, player_id, game):
+    """Get stats per game for a player
+    
+    args:
+      browser(selenium.webdriver):  Handle to the selenium webdriver class
+      player_id(int): Player ID number
+      game(str):  values("8_ball, 9_ball, 10_ball)
+
+    returns:
+      results(dict):  Dictionary of the results by difference in games needed to win the race
+        Ex.
+          results = {
+            -1: {"games_won": 9, "games_lost": 7},
+            0: {"games_won": 5, "games_lost": 7},
+            1: {"games_won": 10, "games_lost": 3},
+          }
+    """
     results = {}
     game_tabs = {"8_ball": "2", "9_ball": "3", "10_ball": "4"}
     for page in ["0", "10", "20", "30"]:
@@ -150,7 +201,7 @@ def get_player_stats(browser, player_id, game):
         ).text
         matches = browser.find_elements_by_class_name("card-body")
         for match in matches:
-            try:
+            try: 
                 tables = match.find_elements_by_xpath("./table")
                 for table in tables[2:-2]:
                     if "y forfeit" in table.text:
@@ -184,13 +235,36 @@ def get_player_stats(browser, player_id, game):
                         results[skill_diff]["games_lost"] = results[skill_diff][
                             "games_lost"
                         ] + int(table.find_element_by_xpath("./tbody/tr[7]/td[2]").text)
-            except:
+            except: #FIXME: Learn how to process results from an "MVP player"
                 pass
 
     return results
 
 
-def run_simulations(combined_win_percentage, my_race, their_race, simulation_count):
+def run_simulations(combined_win_percentage, my_race, their_race, SIMULATION_COUNT):
+    """Run simulations based on combined_win_percentage, games needed for a win
+    and bucket the results across the points received per simulation
+    
+    args:
+      combined_win_percentage(float):  Average of (
+        our player's percentage games won  at this race,
+        their player's percentage games lost at this race
+      )
+      my_race(int):  games needed for our player to win
+      their_race(int):  games needed for their player to win
+      SIMULATION_COUNT(int):  Number of iterations to get the counts.
+
+    returns:
+      results(dict):  Dictionary of simulation result counts bucketed by points earned by our player
+        ex.
+          results{
+            1:  5000,
+            3:  30000,
+            6:  30000,
+            14: 30000,
+            20: 5000,
+          } 
+    """
     results = {
         1: 0,  # no wins
         3: 0,  # 1 win
@@ -198,7 +272,7 @@ def run_simulations(combined_win_percentage, my_race, their_race, simulation_cou
         14: 0,  # match win
         20: 0,  # shutout
     }
-    for x in range(0, simulation_count):
+    for x in range(0, SIMULATION_COUNT):
         games_won = 0
         games_lost = 0
         while True:
@@ -226,29 +300,29 @@ def run_simulations(combined_win_percentage, my_race, their_race, simulation_cou
 browser = create_connection(WEBDRIVER)
 players = get_rosters(browser, ROSTERSURL)
 
-for player in players[us]:
-    players[us][player].setdefault("skill_level", [])
-    players[us][player]["skill_level"] = get_player_skill_levels(
-        browser, players[us][player]["player_id"]
+for player in players[US]:
+    players[US][player].setdefault("skill_level", [])
+    players[US][player]["skill_level"] = get_player_skill_levels(
+        browser, players[US][player]["player_id"]
     )
     for game in ["8_ball", "9_ball", "10_ball"]:
-        players[us][player].setdefault(game, [])
-        players[us][player][game] = get_player_stats(
-            browser, players[us][player]["player_id"], game
+        players[US][player].setdefault(game, [])
+        players[US][player][game] = get_player_stats(
+            browser, players[US][player]["player_id"], game
         )
 
-for player in players[opponent]:
-    players[opponent][player].setdefault("skill_level", [])
-    players[opponent][player]["skill_level"] = get_player_skill_levels(
-        browser, players[opponent][player]["player_id"]
+for player in players[OPPONENT]:
+    players[OPPONENT][player].setdefault("skill_level", [])
+    players[OPPONENT][player]["skill_level"] = get_player_skill_levels(
+        browser, players[OPPONENT][player]["player_id"]
     )
     for game in ["8_ball", "9_ball", "10_ball"]:
-        players[opponent][player].setdefault(game, [])
-        players[opponent][player][game] = get_player_stats(
-            browser, players[opponent][player]["player_id"], game
+        players[OPPONENT][player].setdefault(game, [])
+        players[OPPONENT][player][game] = get_player_stats(
+            browser, players[OPPONENT][player]["player_id"], game
         )
 predictions = {}
-for player in players[us]:
+for player in players[US]:
     predictions.setdefault(player, {})
     game_map = {0: "8  ", 1: "9  ", 2: "10 "}
     print (
@@ -257,14 +331,14 @@ for player in players[us]:
             player,
             " ".join(
                 [
-                    str(players[us][player]["skill_level"][0]),
-                    str(players[us][player]["skill_level"][1]),
-                    str(players[us][player]["skill_level"][2]),
+                    str(players[US][player]["skill_level"][0]),
+                    str(players[US][player]["skill_level"][1]),
+                    str(players[US][player]["skill_level"][2]),
                 ]
             ),
         )
     )
-    for against in players[opponent]:
+    for against in players[OPPONENT]:
         try:
             predictions[player].setdefault(against, {})
             seed_games = {"8_ball": 0, "9_ball": 0, "10_ball": 0}
@@ -276,40 +350,40 @@ for player in players[us]:
             for game in ("8_ball", "9_ball", "10_ball"):
                 predictions[player][against].setdefault(game, 10)
                 my_race, their_race = get_race(
-                    players[us][player]["skill_level"][game_index],
-                    players[opponent][against]["skill_level"][game_index],
+                    players[US][player]["skill_level"][game_index],
+                    players[OPPONENT][against]["skill_level"][game_index],
                 )
                 skill_difference = my_race - their_race
                 combined_wins = 0
                 combined_losses = 0
                 for spread in [-1, 0, 1]:
-                    if (int(skill_difference) + int(spread)) in players[us][player][
+                    if (int(skill_difference) + int(spread)) in players[US][player][
                         game
                     ]:
                         combined_wins = (
                             combined_wins
-                            + players[us][player][game][skill_difference + spread][
+                            + players[US][player][game][skill_difference + spread][
                                 "games_won"
                             ]
                         )
                         combined_losses = (
                             combined_losses
-                            + players[us][player][game][skill_difference + spread][
+                            + players[US][player][game][skill_difference + spread][
                                 "games_lost"
                             ]
                         )
                     if ((int(skill_difference) + int(spread)) * -1) in players[
-                        opponent
+                        OPPONENT
                     ][against][game]:
                         combined_wins = (
                             combined_wins
-                            + players[opponent][against][game][
+                            + players[OPPONENT][against][game][
                                 (skill_difference + spread) * -1
                             ]["games_lost"]
                         )
                         combined_losses = (
                             combined_losses
-                            + players[opponent][against][game][
+                            + players[OPPONENT][against][game][
                                 (skill_difference + spread) * -1
                             ]["games_won"]
                         )
@@ -322,14 +396,14 @@ for player in players[us]:
                         float(combined_wins) / combined_total
                     ) * 100
                 simulation_results = run_simulations(
-                    combined_win_percentage, my_race, their_race, simulation_count
+                    combined_win_percentage, my_race, their_race, SIMULATION_COUNT
                 )
                 distribution = [
-                    int(float(simulation_results[1]) / simulation_count * 100 + 0.5),
-                    int(float(simulation_results[3]) / simulation_count * 100 + 0.5),
-                    int(float(simulation_results[6]) / simulation_count * 100 + 0.5),
-                    int(float(simulation_results[14]) / simulation_count * 100 + 0.5),
-                    int(float(simulation_results[20]) / simulation_count * 100 + 0.5),
+                    int(float(simulation_results[1]) / SIMULATION_COUNT * 100 + 0.5),
+                    int(float(simulation_results[3]) / SIMULATION_COUNT * 100 + 0.5),
+                    int(float(simulation_results[6]) / SIMULATION_COUNT * 100 + 0.5),
+                    int(float(simulation_results[14]) / SIMULATION_COUNT * 100 + 0.5),
+                    int(float(simulation_results[20]) / SIMULATION_COUNT * 100 + 0.5),
                 ]
                 predictions[player][against][game] = (
                     (distribution[1] * 3)
@@ -379,21 +453,21 @@ for player in players[us]:
                 seed_games["8_ball"],
                 seed_games["9_ball"],
                 seed_games["10_ball"],
-                str(players[opponent][against]["skill_level"][0]),
-                str(players[opponent][against]["skill_level"][1]),
-                str(players[opponent][against]["skill_level"][2]),
+                str(players[OPPONENT][against]["skill_level"][0]),
+                str(players[OPPONENT][against]["skill_level"][1]),
+                str(players[OPPONENT][against]["skill_level"][2]),
             )
-            if graphs == "bucket_per_line":
+            if GRAPHS == "bucket_per_line":
                 for bucket in ["c_loss", "loss", "h_loss", "win", "c_win"]:
                     for line in results[bucket]:
                         print "%s:\t%s" % (bucket, line)
-            elif graphs == "one_line":
+            elif GRAPHS == "one_line":
                 for line in results["one_line"]:
                     print line
             print "-" * 103
         except:
             pass
-for against in players[opponent]:
+for against in players[OPPONENT]:
     print "===== %s =====" % against
     for player in predictions:
         for game in predictions[player][against]:

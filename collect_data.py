@@ -1,11 +1,12 @@
 #! /usr/bin/python2
 
+import pickle
 import random
 import time
 
 from selenium import webdriver
 
-OPPONENT = "Just Hard Enough"
+OPPONENT = "Rack And Run"
 US = "Zoosters Millions"
 DIVISION = 9321
 SIMULATION_COUNT = 100000
@@ -163,9 +164,9 @@ def get_player_skill_levels(browser, player_id):
       browser.get("%s=%s" % (BASEURL, player_id))
       browser.implicitly_wait(6)
 
-      sl8 = browser.find_element_by_xpath(XPATHS["8ball_skill"]).text
-      sl9 = browser.find_element_by_xpath(XPATHS["9ball_skill"]).text
-      sl10 = browser.find_element_by_xpath(XPATHS["10ball_skill"]).text
+      sl8 = browser.find_element_by_xpath(XPATHS["8ball_skill"]).text.split()[0]
+      sl9 = browser.find_element_by_xpath(XPATHS["9ball_skill"]).text.split()[0]
+      sl10 = browser.find_element_by_xpath(XPATHS["10ball_skill"]).text.split()[0]
       return [int(sl8), int(sl9), int(sl10)]
     except:
       pass
@@ -305,6 +306,7 @@ for player in players[US]:
     players[US][player]["skill_level"] = get_player_skill_levels(
         browser, players[US][player]["player_id"]
     )
+    print("DEBUG: %s" % players[US][player]["skill_level"])
     for game in ["8_ball", "9_ball", "10_ball"]:
         players[US][player].setdefault(game, [])
         players[US][player][game] = get_player_stats(
@@ -321,23 +323,36 @@ for player in players[OPPONENT]:
         players[OPPONENT][player][game] = get_player_stats(
             browser, players[OPPONENT][player]["player_id"], game
         )
+
+data_file = open("data.pkl", "wb")
+pickle.dump(players, data_file)
+data_file.close()
+
+players = {}
+data_file = open("data.pkl", "rb")
+players = pickle.load(data_file)
+
+
 predictions = {}
 for player in players[US]:
     predictions.setdefault(player, {})
     game_map = {0: "8  ", 1: "9  ", 2: "10 "}
-    print (
-        "\n\n#### %s %s ####"
-        % (
-            player,
-            " ".join(
-                [
-                    str(players[US][player]["skill_level"][0]),
-                    str(players[US][player]["skill_level"][1]),
-                    str(players[US][player]["skill_level"][2]),
-                ]
-            ),
-        )
-    )
+    try:
+	    print (
+		"\n\n#### %s %s ####"
+		% (
+		    player,
+		    " ".join(
+			[
+			    str(players[US][player]["skill_level"][0]),
+			    str(players[US][player]["skill_level"][1]),
+			    str(players[US][player]["skill_level"][2]),
+			]
+		    ),
+		)
+	    )
+    except:
+        pass
     for against in players[OPPONENT]:
         try:
             predictions[player].setdefault(against, {})
@@ -467,6 +482,7 @@ for player in players[US]:
             print "-" * 103
         except:
             pass
+print players
 for against in players[OPPONENT]:
     print "===== %s =====" % against
     for player in predictions:
@@ -476,5 +492,7 @@ for against in players[OPPONENT]:
                 % (player, against, game, predictions[player][against][game])
             )
         print "-----------------------------------"
+
+
 
 browser.close()
